@@ -72,8 +72,9 @@ zoom:
 do_frame:
 		inc si
 		push dx
-		xor dl, dl
-		cmp si, 10
+		mov dl, dh
+		xor dh, dh
+		cmp si, dx
 		jae end_frame
 		pop dx
 
@@ -121,7 +122,8 @@ end_frame:
 		mov al, DRC
 		mov cx, 1d
 		call Draw_Line
-				
+		pop bx
+
 		ret			; exit (0)
 
 ;=================================================
