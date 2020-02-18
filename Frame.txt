@@ -1,4 +1,5 @@
 .model tiny
+.386
 ;=================================================
 
 START_LINE  equ 5d
@@ -19,7 +20,6 @@ URC	 equ 0bbh	; up-right   corner
 DLC	 equ 0c8h	; down-left  corner
 DRC 	 equ 0bch	; down-right corner
 SPC   	 equ 20h	; space
-
 ;=================================================
 
 .govideoseg	macro
@@ -40,9 +40,14 @@ start:
 		mov dl, START_LEN_X - 8d	; -8d for resize
 		mov dh, START_LEN_Y - 3d	; -3d for resize
 
+		xor si, si			; si = 0
 zoom:
-		add dl, 8d			; zoom
-		add dh, 3d			; zoom
+		inc si				; si++
+		cmp si, 3d			
+		jae end_zoom			; if (si >= 3d) goto end_zoom
+
+		add dl, 8d			; zoom (x-coord)
+		add dh, 3d			; zoom (y-coord)
 		
 		mov al, ULC			;}
 		mov cx, 1d			;|
@@ -51,80 +56,101 @@ zoom:
 		call Draw_Line			;}
 		
 		push bx				; "save" bx
-		inc bx
+		inc bx				; bx++ (coord_x++)
 			
-		push dx
-		xor dh, dh
-		mov al, HOR			;}
+		push dx				; "save" dx
+		xor dh, dh			; dh = 0
+		mov al, HOR			;}-----
 		mov cx, dx			;| draw up line
-		call Draw_Line			;}
-		add bx, dx
-		pop dx
+		call Draw_Line			;}-----
+		add bx, dx			; bx += dx (coord_x += dx)
+		pop dx				; restore dx
 		
-		mov al, URC			;}
+		mov al, URC			;}-----
 		mov cx, 1d			;| draw up-right symbol
-		call Draw_Line			;}
+		call Draw_Line			;}-----
 
 		pop bx				; restore bx
 		inc bh				; go next line
-
-		xor si, si
-do_frame:
-		inc si
-		push dx
-		mov dl, dh
-		xor dh, dh
-		cmp si, dx
-		jae end_frame
-		pop dx
-
-		mov al, VER
-		mov cx, 1d
-		call Draw_Line
-
-		push bx
-		inc bl
-
-		push dx
-		xor dh, dh
-		mov al, SPC
-		mov cx, dx
-		call Draw_Line
-		add bl, dl
-		pop dx
-
-		mov al, VER
-		mov cx, 1d
-		call Draw_Line
-
-		pop bx
-		inc bh
 	
-		jmp do_frame 
+		push si				; "save" si
+		xor si, si			; si = 0
+do_frame:
+		inc si				; si++
+		push dx				; "save" dx
+		mov dl, dh			;}-----
+		xor dh, dh			;| change dh and dl to cmp with si
+		cmp si, dx			;}-----
+		jae end_frame			; if (si >= dx) goto end_frame
+		pop dx				; restore dx
+
+		mov al, VER			;}-----
+		mov cx, 1d			;| draw left symbol for main part of frame
+		call Draw_Line			;}-----
+
+		push bx				; "save" bx
+		inc bx				; bx++ (coord_x++)
+
+		push dx				; "save" dx
+		xor dh, dh			; dh = 0
+		mov al, SPC			;}----- 
+		mov cx, dx			;| draw main line
+		call Draw_Line			;}-----
+		add bx, dx			; bx += dx (ccoed_x += dx)
+		pop dx				; restore dx
+
+		mov al, VER			;}-----
+		mov cx, 1d			;| draw right symbol for main part of frame
+		call Draw_Line			;}-----
+
+		pop bx				; restore bx
+		inc bh				; bh++ (coord_y++)
+	
+		jmp do_frame 			; goto do_frame
 
 end_frame:
-		pop dx	
-	
-		mov al, DLC
-		mov cx, 1d
-		call Draw_Line
-		push bx
-		inc bl
+		pop dx				; restore dx
+		pop si				; restore si
+			
+		mov al, DLC			;}-----
+		mov cx, 1d			;| draw down-left sumbol
+		call Draw_Line			;}-----
+		push bx				; "save" bx
+		inc bx				; bx++ (coord_x++)
 
-		push dx
-		xor dh, dh
-		mov al, HOR
-		mov cx, dx
-		call Draw_Line
-		add bx, dx
-		pop dx
+		push dx				; "save" dx
+		xor dh, dh			; dh = 0
+		mov al, HOR			;}-----
+		mov cx, dx			;| draw down line
+		call Draw_Line			;}-----
+		add bx, dx			; bx += dx (coord_x += dx)
+		pop dx				; restore dx
 
-		mov al, DRC
-		mov cx, 1d
-		call Draw_Line
-		pop bx
+		mov al, DRC			;}-----
+		mov cx, 1d			;| draw down-right symbol
+		call Draw_Line			;}-----
+		pop bx				; restore bx
+		
+		push bx				; "save" bx
+		xor bx, bx			; bx = 0
+again:
+		add bx, 1			; bx++ (counter++)
+		push bx				;}-----
+		pop bx				;|
+		push bx				;|
+		pop bx				;| long time commands
+		push bx				;| to make delay
+		pop bx				;|
+		push bx				;|
+		pop bx				;}-----
+		cmp bx, 15000			;
+		jbe again			; if (bx <= 15000) goto again
 
-		ret			; exit (0)
+		pop bx				; restore bx
+
+		jmp zoom			; goto zoom
+end_zoom:
+		ret				; exit (0)
 
 ;=================================================
 ; Draw horizontal line
