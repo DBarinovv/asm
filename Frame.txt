@@ -7,11 +7,16 @@ START_COORD equ 5d
 START_LEN_X equ 10d
 START_LEN_Y equ 5d
 
+CNT_OF_ZOOM equ 3d
+ZOOM_FOR_X  equ 8d
+ZOOM_FOR_Y  equ 3d
+
 MAX_X    equ 80d
 MAX_Y    equ 25d
 VIDEOSEG equ 0b800h
 
 DWLGF	 equ 27h	; dark white letter, green fone
+WLRF	 equ 04fh	; white letter, red fone
 
 VER	 equ 0bah	; vertival   for frame
 HOR	 equ 0cdh	; horizontal for frame
@@ -37,17 +42,17 @@ start:
 		.govideoseg
 		
 		mov ah, DWLGF
-		mov dl, START_LEN_X - 8d	; -8d for resize
-		mov dh, START_LEN_Y - 3d	; -3d for resize
+		mov dl, START_LEN_X - ZOOM_FOR_X	; -8d for resize
+		mov dh, START_LEN_Y - ZOOM_FOR_Y	; -3d for resize
 
 		xor si, si			; si = 0
 zoom:
 		inc si				; si++
-		cmp si, 3d			
+		cmp si, CNT_OF_ZOOM			
 		jae end_zoom			; if (si >= 3d) goto end_zoom
 
-		add dl, 8d			; zoom (x-coord)
-		add dh, 3d			; zoom (y-coord)
+		add dl, ZOOM_FOR_X		; zoom (x-coord)
+		add dh, ZOOM_FOR_Y		; zoom (y-coord)
 		
 		mov al, ULC			;}
 		mov cx, 1d			;|
@@ -150,6 +155,22 @@ again:
 
 		jmp zoom			; goto zoom
 end_zoom:
+		mov bx, (80*(START_LINE + (ZOOM_FOR_Y*CNT_OF_ZOOM-1)/2) + START_COORD + (ZOOM_FOR_X*CNT_OF_ZOOM-1)/2 - 2)*2	; in middle
+
+		mov byte ptr es:[bx], 'D'	; write 'D'
+		inc bx				; bx++
+		mov byte ptr es:[bx], WLRF
+		inc bx				; bx++
+
+		mov byte ptr es:[bx], 'E'	; write 'E'
+		inc bx				; bx++
+		mov byte ptr es:[bx], WLRF	
+		inc bx				; bx++
+
+		mov byte ptr es:[bx], 'D'	; write 'D'
+		inc bx				; bx++
+		mov byte ptr es:[bx], WLRF
+
 		ret				; exit (0)
 
 ;=================================================
