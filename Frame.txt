@@ -54,87 +54,12 @@ zoom:
 		add dl, ZOOM_FOR_X		; zoom (x-coord)
 		add dh, ZOOM_FOR_Y		; zoom (y-coord)
 
-		mov al, ULC				;}
-		mov bx, ((START_LINE*80) + START_COORD)*2 	;| draw up-left symbol
-		push bx
-		call Draw_Symbol			;}
-
-		push dx				; "save" dx
-		xor dh, dh			; dh = 0
-		mov al, HOR			;}-----
-		mov cx, dx			;| draw up line
-		call Draw_Line			;}-----
-		pop dx				; restore dx
-
-		mov al, URC			; draw up-right symbol
-		call Draw_Symbol		;
-
-		pop bx				; restore bx
-		add bx, 80*2
-
-		push si				; "save" si
-		xor si, si			; si = 0
-do_frame:
-		inc si				; si++
-		push dx				; "save" dx
-		mov dl, dh			;}-----
-		xor dh, dh			;| change dh and dl to cmp with si
-		cmp si, dx			;}-----
-		jae end_frame			; if (si >= dx) goto end_frame
-		pop dx				; restore dx
-
-		mov al, VER			; draw left symbol for main part of frame
-		push bx
-		call Draw_Symbol		;
-
-		push dx				; "save" dx
-		xor dh, dh			; dh = 0
-		mov al, SPC			;}-----
-		mov cx, dx			;| draw main line
-		call Draw_Line			;}-----
-		pop dx				; restore dx
-
-		mov al, VER			; draw right symbol for main part of frame
-		call Draw_Symbol		;
-
-		pop bx				; restore bx
-		add bx, 80*2
-
-		jmp do_frame 			; goto do_frame
-
-end_frame:
-		pop dx				; restore dx
-		pop si				; restore si
-
-		mov al, DLC			; draw down-left sumbol
-		push bx
-		call Draw_Symbol		;
-
-		push dx				; "save" dx
-		xor dh, dh			; dh = 0
-		mov al, HOR			;}-----
-		mov cx, dx			;| draw down line
-		call Draw_Line			;}-----
-		pop dx				; restore dx
-
-		mov al, DRC			; draw down-right symbol
-		call Draw_Symbol		;
-		pop bx				; restore bx
+        call Draw_Full_Frame
 
 		call Delay
 		jmp zoom
 end_zoom:
-		mov bx, (80*(START_LINE + (ZOOM_FOR_Y*CNT_OF_ZOOM-1)/2) + START_COORD + (ZOOM_FOR_X*CNT_OF_ZOOM-1)/2 - 2)*2	; in middle
-
-		mov al, 'D'
-		mov ah, WLRF
-		call Draw_Symbol
-
-		mov al, 'E'
-		call Draw_Symbol
-
-		mov al, 'D'
-		call Draw_Symbol
+		call Draw_Ded
 
 		ret				; exit (0)
 
@@ -186,6 +111,175 @@ Draw_Line	proc
 		add bx, cx
 
 		rep stosw		; mov es:[di++], ax
+
+		ret
+		endp
+
+;=================================================
+; Draw UP line with ULC, =, URC
+; In:
+;    AH - fone
+;    BX - start draw point
+;    DL - width
+; Destroy:
+;    AL, CX
+;    AL = URC
+; Call:
+;    Draw_Symbol
+;    Draw_Line
+;=================================================
+
+Draw_Up_Line proc
+
+        mov al, ULC
+
+		push bx
+		call Draw_Symbol
+
+		push dx				; "save" dx
+		xor dh, dh			; dh = 0
+		mov al, HOR			;}-----
+		mov cx, dx			;| draw up line
+		call Draw_Line			;}-----
+		pop dx				; restore dx
+
+		mov al, URC			; draw up-right symbol
+		call Draw_Symbol	;
+
+		pop bx				; restore bx
+
+        ret
+        endp
+
+;=================================================
+; Draw DOWN line with DLC, =, DRC
+; In:
+;    AH - fone
+;    BX - start draw point
+;    DL - width
+; Destroy:
+;    AL, CX
+;    AL = DRC
+; Call:
+;    Draw_Symbol
+;    Draw_Line
+;=================================================
+
+Draw_Down_Line proc
+
+        mov al, DLC			; draw down-left sumbol
+		push bx
+		call Draw_Symbol		;
+
+		push dx				; "save" dx
+		xor dh, dh			; dh = 0
+		mov al, HOR			;}-----
+		mov cx, dx			;| draw down line
+		call Draw_Line			;}-----
+		pop dx				; restore dx
+
+		mov al, DRC			; draw down-right symbol
+		call Draw_Symbol		;
+		pop bx				; restore bx
+
+		ret
+		endp
+
+;=================================================
+; Draw main part (without up and down line) of frame (VER, SPC...SPC, VER)
+; In:
+;    DH - height of frame
+;    DL - width  of frame
+; Destroy:
+;    AL, CX, BX
+;    AL = DRC
+; Call:
+;    Draw_Symbol
+;    Draw_Line
+;=================================================
+
+Draw_Main_Part_Of_Frame proc
+
+        push si				; "save" si
+		xor si, si			; si = 0
+do_frame:
+		inc si				; si++
+		push dx				; "save" dx
+		mov dl, dh			;}-----
+		xor dh, dh			;| change dh and dl to cmp with si
+		cmp si, dx			;}-----
+		jae end_frame			; if (si >= dx) goto end_frame
+		pop dx				; restore dx
+
+		mov al, VER			; draw left symbol for main part of frame
+		push bx
+		call Draw_Symbol		;
+
+		push dx				; "save" dx
+		xor dh, dh			; dh = 0
+		mov al, SPC			;}-----
+		mov cx, dx			;| draw main line
+		call Draw_Line			;}-----
+		pop dx				; restore dx
+
+		mov al, VER			; draw right symbol for main part of frame
+		call Draw_Symbol		;
+
+		pop bx				; restore bx
+		add bx, 80*2
+
+		jmp do_frame 			; goto do_frame
+
+end_frame:
+		pop dx				; restore dx
+		pop si				; restore si
+
+        ret
+        endp
+
+;=================================================
+; Draw FULL frame
+; Destroy:
+;   BX
+; Call:
+;   Draw_Up_Line
+;   Draw_Main_Part_Of_Frame
+;   Draw_Down_Line
+;=================================================
+
+Draw_Full_Frame proc
+
+        mov bx, ((START_LINE*80) + START_COORD)*2 	;| draw up-left symbol
+        call Draw_Up_Line
+
+		add bx, 80*2
+
+		call Draw_Main_Part_Of_Frame
+
+		call Draw_Down_Line
+
+        ret
+        endp
+
+;=================================================
+; Draw DED in the middle of frame
+; Destroy:
+;	BX, AX
+;=================================================
+
+Draw_Ded	proc
+
+		mov bx, (80*(START_LINE + (ZOOM_FOR_Y*CNT_OF_ZOOM-1)/2) + START_COORD + (ZOOM_FOR_X*CNT_OF_ZOOM-1)/2 - 2)*2	; in middle
+
+		mov al, 'D'
+		mov ah, WLRF
+		call Draw_Symbol
+
+		mov al, 'E'
+		call Draw_Symbol
+
+		mov al, 'D'
+		call Draw_Symbol
 
 		ret
 		endp
