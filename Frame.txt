@@ -4,12 +4,10 @@
 
 START_LINE  equ 5d
 START_COORD equ 5d
-START_LEN_X equ 10d
-START_LEN_Y equ 5d
 
 CNT_OF_ZOOM equ 3d
-ZOOM_FOR_X  equ 8d
-ZOOM_FOR_Y  equ 3d
+ZOOM_FOR_X  equ 1d
+ZOOM_FOR_Y  equ 1d
 
 MAX_X    equ 80d
 MAX_Y    equ 25d
@@ -18,13 +16,13 @@ VIDEOSEG equ 0b800h
 DWLGF	 equ 27h	; dark white letter, green fone
 WLRF	 equ 04fh	; white letter, red fone
 
-VER	 equ 0bah	; vertival   for frame
-HOR	 equ 0cdh	; horizontal for frame
-ULC	 equ 0c9h	; up-left    corner
-URC	 equ 0bbh	; up-right   corner
-DLC	 equ 0c8h	; down-left  corner
-DRC 	 equ 0bch	; down-right corner
-SPC   	 equ 20h	; space
+VER	     equ 0bah	; vertival   for frame
+HOR	     equ 0cdh	; horizontal for frame
+ULC	     equ 0c9h	; up-left    corner
+URC	     equ 0bbh	; up-right   corner
+DLC	     equ 0c8h	; down-left  corner
+DRC   	 equ 0bch	; down-right corner
+SPC  	 equ 20h	; space
 ;=================================================
 
 .govideoseg	macro
@@ -35,33 +33,111 @@ SPC   	 equ 20h	; space
 		endm
 
 ;=================================================
+.data
+
+start_len_x db 16
+start_len_y db 8
+
+;=================================================
+
 .code
 org 100h
 
 start:
-		.govideoseg
+        	xor cx, cx
+        	mov si, 81h    ; - adress of command line start
+start_again:
+        	lodsb
+        	cmp al, 0
+        	je exit
 
-		mov ah, DWLGF
-		mov dl, START_LEN_X - ZOOM_FOR_X	; -8d for resize
-		mov dh, START_LEN_Y - ZOOM_FOR_Y	; -3d for resize
+        	cmp al, '0'
+        	jb start_again
+        	cmp al, '9'
+        	ja start_again
 
-		xor si, si			; si = 0
-zoom:
-		inc si				; si++
-		cmp si, CNT_OF_ZOOM
-		jae end_zoom			; if (si >= 3d) goto end_zoom
+        	cmp cx, 0
+        	je first
 
-		add dl, ZOOM_FOR_X		; zoom (x-coord)
-		add dh, ZOOM_FOR_Y		; zoom (y-coord)
+            sub al, '0'
+        	mov start_len_y, al
 
-        call Draw_Full_Frame
+        	lodsb
+        	cmp al, '0'
+        	jb start_again
+            cmp al, '9'
+            ja start_again
 
-		call Delay
-		jmp zoom
-end_zoom:
-		call Draw_Ded
+            sub al, '0'
 
-		ret				; exit (0)
+            push bx
+            push cx
+
+            mov cl, al
+            mov al, start_len_y
+
+            mov bl, 10d
+            mul bl
+            add al, cl
+            mov start_len_y, al
+
+            pop cx
+            pop bx
+
+
+        	jmp exit
+
+first:
+            sub al, '0'
+        	mov start_len_x, al
+
+        	lodsb
+        	cmp al, '0'
+        	jb start_again
+            cmp al, '9'
+            ja start_again
+
+            sub al, '0'
+
+            push bx
+            push cx
+
+            mov cl, al
+            mov al, start_len_x
+
+            mov bl, 10d
+            mul bl
+            add al, cl
+            mov start_len_x, al
+
+            pop cx
+            pop bx
+
+        	inc cx
+        	jmp start_again
+
+exit:
+
+            .govideoseg
+
+
+            mov ah, DWLGF
+
+            mov dl, start_len_x
+            add dl, start_len_x
+            sub dl, ZOOM_FOR_X
+
+            mov dh, start_len_y
+            sub dh, ZOOM_FOR_Y
+
+
+            call Draw_Full_Zoom_Frame
+
+            ret				; exit (0)
+
+;=================================================
+
+wedth   db 20d, 0, 21d dup (0)
 
 ;=================================================
 ; Draw one symbol
@@ -70,7 +146,6 @@ end_zoom:
 ;	AL - symbol to draw
 ; 	ES - VIDEOSEG
 ;	BX - where draw
-;
 ; Destroy:
 ;	BX
 ;	BX += 2
@@ -78,14 +153,14 @@ end_zoom:
 
 Draw_Symbol	proc
 
-		mov byte ptr es:[bx], al
-		inc bx
-		push ax
-		mov al, ah
-		xor ah, ah
-		mov byte ptr es:[bx], al
-		pop ax
-		inc bx
+		mov byte ptr es:[bx], al	; es[bx] = al
+		inc bx                          ; bx++
+		push ax                         ; "save" ax
+		mov al, ah                      ; al = ah
+		xor ah, ah                      ; al = 0
+		mov byte ptr es:[bx], al        ; es:[bx] = al
+		pop ax                          ; restore ax
+		inc bx                          ; bx++
 
 		ret
 		endp
@@ -93,22 +168,23 @@ Draw_Symbol	proc
 ;=================================================
 ; Draw horizontal line
 ; In:
-; 	AH - color
-;	AL - symbol to draw
-;	BX - where draw
-;	CX - length
-;	ES = VIDEOSEG
+;    AH - color
+;    AL - symbol to draw
+;    BX - where draw
+;    CX - length
+;    ES = VIDEOSEG
+;
 ; Destroy:
-;	CX, DI
-;	BX += CX
-;	CX = 0
+;    CX, DI
+;    BX += CX
+;    CX = 0
 ;=================================================
 
 Draw_Line	proc
 
 		mov di, bx		; di = bx
-		add bx, cx
-		add bx, cx
+		add bx, cx              ; }
+		add bx, cx              ; | bx += 2*cx
 
 		rep stosw		; mov es:[di++], ax
 
@@ -121,9 +197,11 @@ Draw_Line	proc
 ;    AH - fone
 ;    BX - start draw point
 ;    DL - width
+;
 ; Destroy:
-;    AL, CX
+;    AL, CX, BX, DI
 ;    AL = URC
+;
 ; Call:
 ;    Draw_Symbol
 ;    Draw_Line
@@ -131,9 +209,9 @@ Draw_Line	proc
 
 Draw_Up_Line proc
 
-        mov al, ULC
+        	mov al, ULC                     ; al = up-left sumbol
 
-		push bx
+		push bx                         ; "save" bx
 		call Draw_Symbol
 
 		push dx				; "save" dx
@@ -143,13 +221,13 @@ Draw_Up_Line proc
 		call Draw_Line			;}-----
 		pop dx				; restore dx
 
-		mov al, URC			; draw up-right symbol
-		call Draw_Symbol	;
+		mov al, URC			; al = up-right symbol
+		call Draw_Symbol
 
 		pop bx				; restore bx
 
-        ret
-        endp
+        	ret
+        	endp
 
 ;=================================================
 ; Draw DOWN line with DLC, =, DRC
@@ -157,9 +235,11 @@ Draw_Up_Line proc
 ;    AH - fone
 ;    BX - start draw point
 ;    DL - width
+;
 ; Destroy:
-;    AL, CX
+;    AL, CX, BX, DI
 ;    AL = DRC
+;
 ; Call:
 ;    Draw_Symbol
 ;    Draw_Line
@@ -167,9 +247,9 @@ Draw_Up_Line proc
 
 Draw_Down_Line proc
 
-        mov al, DLC			; draw down-left sumbol
-		push bx
-		call Draw_Symbol		;
+	        mov al, DLC			; al = down-left sumbol
+		push bx                         ; "save" bx
+		call Draw_Symbol
 
 		push dx				; "save" dx
 		xor dh, dh			; dh = 0
@@ -178,8 +258,8 @@ Draw_Down_Line proc
 		call Draw_Line			;}-----
 		pop dx				; restore dx
 
-		mov al, DRC			; draw down-right symbol
-		call Draw_Symbol		;
+		mov al, DRC			; al = draw down-right symbol
+		call Draw_Symbol
 		pop bx				; restore bx
 
 		ret
@@ -190,9 +270,11 @@ Draw_Down_Line proc
 ; In:
 ;    DH - height of frame
 ;    DL - width  of frame
+;
 ; Destroy:
-;    AL, CX, BX
+;    AL, CX, BX, DI
 ;    AL = DRC
+;
 ; Call:
 ;    Draw_Symbol
 ;    Draw_Line
@@ -200,7 +282,7 @@ Draw_Down_Line proc
 
 Draw_Main_Part_Of_Frame proc
 
-        push si				; "save" si
+        	push si				; "save" si
 		xor si, si			; si = 0
 do_frame:
 		inc si				; si++
@@ -234,13 +316,19 @@ end_frame:
 		pop dx				; restore dx
 		pop si				; restore si
 
-        ret
-        endp
+        	ret
+		endp
 
 ;=================================================
 ; Draw FULL frame
+; In:
+;    DH - height of frame
+;    DL - width  of frame
+;    AH - fone
+;
 ; Destroy:
-;   BX
+;   BX, AL, CX, DI
+;
 ; Call:
 ;   Draw_Up_Line
 ;   Draw_Main_Part_Of_Frame
@@ -249,36 +337,77 @@ end_frame:
 
 Draw_Full_Frame proc
 
-        mov bx, ((START_LINE*80) + START_COORD)*2 	;| draw up-left symbol
-        call Draw_Up_Line
+        	mov bx, ((START_LINE*80) + START_COORD)*2 	; bx = start point
+        	call Draw_Up_Line
 
-		add bx, 80*2
+		add bx, 80*2 					; go next line
 
 		call Draw_Main_Part_Of_Frame
 
 		call Draw_Down_Line
 
-        ret
-        endp
+        	ret
+       		endp
+
+;=================================================
+; Draw FULL ZOOM frame
+; In:
+;    DH - height of frame
+;    DL - width  of frame
+;    AH - fone
+;
+; Destroy:
+;   BX, AL, CX, DI
+;
+; Call:
+;
+;=================================================
+
+Draw_Full_Zoom_Frame	proc
+
+		xor si, si				; si = 0
+zoom:
+		inc si					; si++
+		cmp si, CNT_OF_ZOOM
+		jae end_zoom				; if (si >= 3d) goto end_zoom
+
+		add dl, ZOOM_FOR_X			; zoom (x-coord)
+		add dh, ZOOM_FOR_Y			; zoom (y-coord)
+
+        	call Draw_Full_Frame
+
+		call Delay
+		jmp zoom
+end_zoom:
+		call Draw_Ded
+
+		ret
+		endp
 
 ;=================================================
 ; Draw DED in the middle of frame
 ; Destroy:
 ;	BX, AX
+; Use:
+;	Draw_Symbol
 ;=================================================
 
 Draw_Ded	proc
 
-		mov bx, (80*(START_LINE + (ZOOM_FOR_Y*CNT_OF_ZOOM-1)/2) + START_COORD + (ZOOM_FOR_X*CNT_OF_ZOOM-1)/2 - 2)*2	; in middle
+		mov bx, (80*(START_LINE + (ZOOM_FOR_Y*CNT_OF_ZOOM)/2 + 1) + START_COORD + (ZOOM_FOR_X*CNT_OF_ZOOM)/2 + 1) * 2	; in middle
+		push ax
+		mov al, bl
+		int 29h
+		pop ax
 
-		mov al, 'D'
+		mov al, 'D'		            	; al = D
 		mov ah, WLRF
 		call Draw_Symbol
 
-		mov al, 'E'
+		mov al, 'E'                     ; al = E
 		call Draw_Symbol
 
-		mov al, 'D'
+		mov al, 'D'                     ; al = D
 		call Draw_Symbol
 
 		ret
