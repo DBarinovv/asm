@@ -14,21 +14,26 @@ org 100h
 
 start:
 
-    push 'A'
-    push 'B'
-    push 'C'
-    push 1359d
-    push 1488d
+;    push 'A'
+;    push 'B'
+;    push 'C'
+;    push 1359d
+;    push 1488d
 
-    pop ax
-    mov cl, 10d
-    call Conver_Dec_And_Output
-    pop ax
-    call Conver_Dec_And_Output
+    push offset format_string
 
-    call Output_Char
-    call Output_Char
-    call Output_Char
+
+    call Output_String
+
+;    pop ax
+;    mov cl, 10d
+;    call Conver_Dec_And_Output
+;    pop ax
+;    call Conver_Dec_And_Output
+;
+;    call Output_Char
+;    call Output_Char
+;    call Output_Char
 
     ret
 
@@ -96,7 +101,10 @@ Conver_Dec_And_Output  proc
 ;=================================================
 ; Output string (%s)
 ; In:
-;    Address of string in stack
+;    Address of string in stack 0-terminated
+; Destroy:
+;    AX, BX, DL
+;    Pop last from stack
 ;=================================================
 
 Output_String   proc
@@ -104,6 +112,19 @@ Output_String   proc
     pop ax
     pop bx
     push ax
+
+    mov ah, 02h
+
+@@again:
+
+    mov dl, [bx]
+    int 21h
+
+    inc bx
+
+    cmp [bx], 0
+    jne @@again
+
 
     ret
     endp
