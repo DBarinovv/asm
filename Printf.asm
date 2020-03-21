@@ -5,7 +5,7 @@ locals @@
 
 format_string   db  'I love %s ', 0
 helper_string   db  15  Dup (0), '$'
-res_string      db  100 Dup (0)         ; 100 - max size of string
+;res_string      db  100 Dup (0)         ; 100 - max size of string
 
 ;=================================================
 
@@ -14,17 +14,19 @@ org 100h
 
 start:
 
+    call My_Printf
+
 ;    push 'A'
 ;    push 'B'
 ;    push 'C'
 ;    push 1359d
 ;    push 1488d
-
-    push offset format_string
-
-
-    call Output_String
-
+;
+;    push offset format_string
+;
+;
+;    call Output_String
+;
 ;    pop ax
 ;    mov cl, 10d
 ;    call Conver_Dec_And_Output
@@ -36,6 +38,121 @@ start:
 ;    call Output_Char
 
     ret
+
+
+;=================================================
+; My printf
+; In:
+;    Format string in stack
+;=================================================
+
+My_Printf   proc
+
+    pop si
+
+    mov bx, offset format_string
+    dec bx
+
+
+
+@@again:
+
+    inc bx
+    mov dl, [bx]
+    cmp dl, 0
+    je @@exit
+
+    cmp dl, '%'
+    je @@character_%
+
+    mov ah, 02h
+    int 21h
+
+    jmp @@again
+
+
+@@character_%:
+
+    inc bx
+    mov dl, [bx]
+
+
+    cmp dl, 's'
+    je @@call_%s
+
+    cmp dl, 'd'
+    je @@call_%d
+
+    cmp dl, 'b'
+    je @@call_%b
+
+    cmp dl, 'x'
+    je @@call_%x
+
+    cmp dl, 'o'
+    je @@call_%o
+
+    cmp dl, 'c'
+    je @@call_%c
+
+    cmp dl, '%'
+    mov ah, 02h
+    int 21h
+
+    jmp @@again
+
+
+;-------------------------------------------------
+@@call_%s:
+
+    call Output_String
+    jmp @@again
+
+;-------------------------------------------------
+@@call_%d:
+
+    pop ax
+    mov cl, 10d
+    call Conver_Dec_And_Output
+    jmp @@again
+
+;-------------------------------------------------
+@@call_%b:
+
+    pop ax
+    mov cl, 2d
+    call Conver_Dec_And_Output
+    jmp @@again
+
+;-------------------------------------------------
+@@call_%x:
+
+    pop ax
+    mov cl, 16d
+    call Conver_Dec_And_Output
+    jmp @@again
+
+;-------------------------------------------------
+@@call_%o:
+
+    pop ax
+    mov cl, 8d
+    call Conver_Dec_And_Output
+    jmp @@again
+
+;-------------------------------------------------
+@@call_%c:
+
+    call Output_Char
+    jmp @@again
+
+;-------------------------------------------------
+@@exit:
+
+    push si
+
+    ret
+    endp
 
 
 ;=================================================
@@ -103,7 +220,7 @@ Conver_Dec_And_Output  proc
 ; In:
 ;    Address of string in stack 0-terminated
 ; Destroy:
-;    AX, BX, DL
+;    AX, BX, DX
 ;    Pop last from stack
 ;=================================================
 
@@ -122,7 +239,8 @@ Output_String   proc
 
     inc bx
 
-    cmp [bx], 0
+    mov dx, [bx]
+    cmp dx, 0
     jne @@again
 
 
@@ -134,15 +252,15 @@ Output_String   proc
 ; Output result string
 ;=================================================
 
-Output_Result_String    proc
-
-    mov dx, offset res_string
-
-    mov ah, 09h
-    int 21h
-
-    ret
-    endp
+;Output_Result_String    proc
+;
+;    mov dx, offset res_string
+;
+;    mov ah, 09h
+;    int 21h
+;
+;    ret
+;    endp
 
 
 ;=================================================
