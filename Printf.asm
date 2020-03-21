@@ -1,10 +1,18 @@
 .model tiny
 locals @@
-.data
+
+;=================================================
+.const
+
+C_max_len   equ 15
 ;=================================================
 
-format_string   db  'I love %s ', 0
-helper_string   db  15  Dup (0), '$'
+.data
+
+in_string   db  'I love %s %c%c %d%%!', 0   ; printf ("in_string")
+helper_string   db  C_max_len  Dup (0), '$'
+string_1    db  'CATS', 0
+
 ;res_string      db  100 Dup (0)         ; 100 - max size of string
 
 ;=================================================
@@ -14,28 +22,33 @@ org 100h
 
 start:
 
+    push 100d
+    push 'a'
+    push 'n'
+    push offset string_1
+
     call My_Printf
 
-;    push 'A'
-;    push 'B'
-;    push 'C'
-;    push 1359d
-;    push 1488d
-;
-;    push offset format_string
-;
-;
-;    call Output_String
-;
-;    pop ax
-;    mov cl, 10d
-;    call Conver_Dec_And_Output
-;    pop ax
-;    call Conver_Dec_And_Output
-;
-;    call Output_Char
-;    call Output_Char
-;    call Output_Char
+;    push 'A'                           ;}
+;    push 'B'                           ;|
+;    push 'C'                           ;|
+;    push 1359d                         ;|
+;    push 1488d                         ;|
+;                                       ;|
+;    push offset string                 ;|
+;                                       ;|
+;                                       ;|
+;    call Output_String                 ;| Tests for functions
+;                                       ;|
+;    pop ax                             ;|
+;    mov cl, 10d                        ;|
+;    call Conver_Dec_And_Output         ;|
+;    pop ax                             ;|
+;    call Conver_Dec_And_Output         ;|
+;                                       ;|
+;    call Output_Char                   ;|
+;    call Output_Char                   ;|
+;    call Output_Char                   ;}
 
     ret
 
@@ -43,38 +56,43 @@ start:
 ;=================================================
 ; My printf
 ; In:
-;    Format string in stack
+;    Format string and arguments in stack
+;
+; Destroy:
+;    SI, AX, BX, CX, DX
+;
+; Call:
+;   Output_Char, Conver_Dec_And_Output, Output_String
 ;=================================================
 
 My_Printf   proc
 
-    pop si
+    pop si      ; "save" address of call My_Printf
 
-    mov bx, offset format_string
+    mov bx, offset in_string
     dec bx
-
 
 
 @@again:
 
-    inc bx
+    inc bx               ; next element
     mov dl, [bx]
-    cmp dl, 0
-    je @@exit
+    cmp dl, 0            ;}
+    je @@exit            ;} if end of string
 
     cmp dl, '%'
     je @@character_%
 
-    mov ah, 02h
-    int 21h
+    mov ah, 02h          ;}
+    int 21h              ;} if element != '%' output it
 
     jmp @@again
 
 
 @@character_%:
 
-    inc bx
-    mov dl, [bx]
+    inc bx               ;}
+    mov dl, [bx]         ;} look next element after '%'
 
 
     cmp dl, 's'
@@ -149,7 +167,7 @@ My_Printf   proc
 ;-------------------------------------------------
 @@exit:
 
-    push si
+    push si     ; restore address of call My_Printf
 
     ret
     endp
@@ -159,6 +177,7 @@ My_Printf   proc
 ; Output char (%c)
 ; In:
 ;    Symbol in stack
+;
 ; Destroy:
 ;    AX, DX
 ;    Pop last from stack
@@ -184,18 +203,29 @@ Output_Char proc
 ; In:
 ;    AX = decimal number
 ;    CL = which system
+;
 ; Destroy:
-;    AX, BX, DX
+;    AX, DX
 ;=================================================
 
 Conver_Dec_And_Output  proc
 
+    push bx     ; "save" bx
+
     mov bx, offset helper_string    ;}
-    add bx, 14                       ;} *bx = helper_string.end
+    add bx, C_max_len - 1           ;} *bx = helper_string.end
 
 @@again:
 
     div cl          ; ah = ax % cl = ax % 10
+
+    cmp ah, 9
+    jbe @@less_10
+
+    add ah, 'A' - '0' - 10   ; for output A, B, C, D...
+
+@@less_10:
+
     add ah, '0'     ; al = ax / cl = ax / 10
     mov [bx], ah    ; helper_string[bx] = ah
     dec bx          ; bx--
@@ -211,6 +241,8 @@ Conver_Dec_And_Output  proc
     mov ah, 09h     ; |
     int 21h         ; }
 
+    pop bx      ; restore bx
+
     ret
     endp
 
@@ -218,7 +250,8 @@ Conver_Dec_And_Output  proc
 ;=================================================
 ; Output string (%s)
 ; In:
-;    Address of string in stack 0-terminated
+;    Address of string in stack (0-terminated)
+;
 ; Destroy:
 ;    AX, BX, DX
 ;    Pop last from stack
@@ -226,23 +259,28 @@ Conver_Dec_And_Output  proc
 
 Output_String   proc
 
-    pop ax
-    pop bx
-    push ax
+    push bx     ; "save" bx
+    pop dx      ;}
+    pop ax      ;|
+    pop bx      ;| make bx - 3 top element
+    push ax     ;|
+    push dx     ;}
 
-    mov ah, 02h
+
+    mov ah, 02h ; for 21h
 
 @@again:
 
-    mov dl, [bx]
-    int 21h
-
-    inc bx
-
-    mov dx, [bx]
-    cmp dx, 0
+    mov dl, [bx]        ;}
+    int 21h             ;|
+                        ;|
+    inc bx              ;| - output symbol bu symbol
+                        ;|
+    mov dl, [bx]        ;|
+    cmp dl, 0           ;}
     jne @@again
 
+    pop bx              ; restore bx
 
     ret
     endp
@@ -252,15 +290,15 @@ Output_String   proc
 ; Output result string
 ;=================================================
 
-;Output_Result_String    proc
-;
-;    mov dx, offset res_string
-;
-;    mov ah, 09h
-;    int 21h
-;
-;    ret
-;    endp
+;Output_Result_String    proc                  ;
+;                                              ;
+;    mov dx, offset res_string                 ;
+;                                              ;
+;    mov ah, 09h                               ; I thought that we make string and then output it
+;    int 21h                                   ;
+;                                              ;
+;    ret                                       ;
+;    endp                                      ;
 
 
 ;=================================================
