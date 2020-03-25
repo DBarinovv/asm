@@ -1,4 +1,5 @@
 .model tiny
+.386
 locals @@
 
 ;=================================================
@@ -7,11 +8,37 @@ locals @@
 C_max_len   equ 15
 ;=================================================
 
+.make_right_di      macro
+
+    mov di, bp
+    add di, 4      ; for skip saved bp
+
+    add di, si     ;}
+    add di, si     ;|  di += (si - 1) * 2
+    dec di         ;|
+    dec di         ;}
+
+    mov ax, [di]
+
+    endm
+
+;-------------------------------------------------
+
+.output_dl      macro
+
+    mov ah, 02h
+    int 21h
+
+    endm
+
+;=================================================
+
+
 .data
 
-in_string   db  'I love %s %c%c %d%%!', 0   ; printf ("in_string")
+in_string   db  'I love %s %c%c %d %%! %b', 0   ; printf ("in_string")
 helper_string   db  C_max_len  Dup (0), '$'
-string_1    db  'CATS', 0
+string_1    db  'EDA', 0
 
 ;res_string      db  100 Dup (0)         ; 100 - max size of string
 
@@ -22,12 +49,19 @@ org 100h
 
 start:
 
+    push 127d
     push 100d
     push 'a'
     push 'n'
     push offset string_1
 
+
+    xor si, si
+
     call My_Printf
+
+    add sp, si  ; pop arguments
+
 
 ;    push 'A'                           ;}
 ;    push 'B'                           ;|
@@ -67,7 +101,8 @@ start:
 
 My_Printf   proc
 
-    pop si      ; "save" address of call My_Printf
+    push bp ; save bp
+    mov bp, sp
 
     mov bx, offset in_string
     dec bx
@@ -83,13 +118,14 @@ My_Printf   proc
     cmp dl, '%'
     je @@character_%
 
-    mov ah, 02h          ;}
-    int 21h              ;} if element != '%' output it
+    .output_dl          ;} if element != '%' output it
 
     jmp @@again
 
 
 @@character_%:
+
+    inc si         ; counter++
 
     inc bx               ;}
     mov dl, [bx]         ;} look next element after '%'
@@ -114,8 +150,10 @@ My_Printf   proc
     je @@call_%c
 
     cmp dl, '%'
-    mov ah, 02h
-    int 21h
+
+    dec si
+
+    .output_dl
 
     jmp @@again
 
@@ -123,43 +161,60 @@ My_Printf   proc
 ;-------------------------------------------------
 @@call_%s:
 
+    .make_right_di
+
+    push bx
+    mov bx, ax
+
     call Output_String
+    pop bx
+
     jmp @@again
 
 ;-------------------------------------------------
 @@call_%d:
 
-    pop ax
+    .make_right_di
+
     mov cl, 10d
+
     call Conver_Dec_And_Output
     jmp @@again
 
 ;-------------------------------------------------
 @@call_%b:
 
-    pop ax
+    .make_right_di
+
     mov cl, 2d
+
     call Conver_Dec_And_Output
     jmp @@again
 
 ;-------------------------------------------------
 @@call_%x:
 
-    pop ax
+    .make_right_di
+
     mov cl, 16d
+
     call Conver_Dec_And_Output
     jmp @@again
 
 ;-------------------------------------------------
 @@call_%o:
 
-    pop ax
+    .make_right_di
+
     mov cl, 8d
+
     call Conver_Dec_And_Output
     jmp @@again
 
 ;-------------------------------------------------
 @@call_%c:
+
+    .make_right_di
 
     call Output_Char
     jmp @@again
@@ -167,7 +222,7 @@ My_Printf   proc
 ;-------------------------------------------------
 @@exit:
 
-    push si     ; restore address of call My_Printf
+    pop bp
 
     ret
     endp
@@ -176,23 +231,23 @@ My_Printf   proc
 ;=================================================
 ; Output char (%c)
 ; In:
-;    Symbol in stack
+;    AX - symbol for output
 ;
 ; Destroy:
-;    AX, DX
+;    AX, DL
 ;    Pop last from stack
 ;=================================================
 
 Output_Char proc
 
-    pop dx          ; save address of call
-    pop ax          ; ax = argument from stack
-    push dx         ; restore address of call (for ret)
+    push bp ; save bp
+    mov bp, sp
 
     mov dl, al      ; dl = al = symbol for output
 
-    mov ah, 02h     ;}
-    int 21h         ;} output
+    .output_dl      ;} output
+
+    pop bp
 
     ret
     endp
@@ -205,10 +260,13 @@ Output_Char proc
 ;    CL = which system
 ;
 ; Destroy:
-;    AX, DX
+;    AX
 ;=================================================
 
 Conver_Dec_And_Output  proc
+
+    push bp ; save bp
+    mov bp, sp
 
     push bx     ; "save" bx
 
@@ -243,6 +301,8 @@ Conver_Dec_And_Output  proc
 
     pop bx      ; restore bx
 
+    pop bp
+
     ret
     endp
 
@@ -259,13 +319,8 @@ Conver_Dec_And_Output  proc
 
 Output_String   proc
 
-    push bx     ; "save" bx
-    pop dx      ;}
-    pop ax      ;|
-    pop bx      ;| make bx - 3 top element
-    push ax     ;|
-    push dx     ;}
-
+    push bp ; save bp
+    mov bp, sp
 
     mov ah, 02h ; for 21h
 
@@ -280,7 +335,7 @@ Output_String   proc
     cmp dl, 0           ;}
     jne @@again
 
-    pop bx              ; restore bx
+    pop bp
 
     ret
     endp
