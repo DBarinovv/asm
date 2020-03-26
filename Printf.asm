@@ -8,7 +8,7 @@ locals @@
 C_max_len   equ 15
 ;=================================================
 
-.make_right_di      macro
+.make_right_ax      macro
 
     mov di, bp
     add di, 4      ; for skip saved bp
@@ -125,31 +125,13 @@ My_Printf   proc
 
 @@character_%:
 
-    inc si         ; counter++
+    inc si        ; counter++
 
     inc bx               ;}
     mov dl, [bx]         ;} look next element after '%'
 
-
-    cmp dl, 's'
-    je @@call_%s
-
-    cmp dl, 'd'
-    je @@call_%d
-
-    cmp dl, 'b'
-    je @@call_%b
-
-    cmp dl, 'x'
-    je @@call_%x
-
-    cmp dl, 'o'
-    je @@call_%o
-
-    cmp dl, 'c'
-    je @@call_%c
-
     cmp dl, '%'
+    jne @@next
 
     dec si
 
@@ -157,11 +139,50 @@ My_Printf   proc
 
     jmp @@again
 
+@@next:
+
+    .make_right_ax      ; make ax = argument from stack
+
+    xor dh, dh
+    mov di, dx
+    sub di, 'b'
+
+    shl di, 1d
+
+    lea dx, [@@jmp_table]
+    add dx, di
+
+    jmp dx
+
+;-------------------------------------------------
+@@jmp_table:
+
+    jmp short @@call_%b           ;   'b'
+    jmp short @@call_%c           ;   'c'
+    jmp short @@call_%d           ;   'd'
+    jmp short @@again                     ;   'e'
+    jmp short @@again                     ;   'f'
+    jmp short @@again                     ;   'g'
+    jmp short @@again                     ;   'h'
+    jmp short @@again                     ;   'i'
+    jmp short @@again                     ;   'j'
+    jmp short @@again                     ;   'k'
+    jmp short @@again                     ;   'l'
+    jmp short @@again                     ;   'm'
+    jmp short @@again                     ;   'n'
+    jmp short @@call_%o           ;  'o'
+    jmp short @@again                     ;   'p'
+    jmp short @@again                     ;   'q'
+    jmp short @@again                     ;   'r'
+    jmp short @@call_%s           ;  's'
+    jmp short @@again                     ;   't'
+    jmp short @@again                     ;   'u'
+    jmp short @@again                     ;   'v'
+    jmp short @@again                     ;   'w'
+    jmp short @@call_%x           ;  'x'
 
 ;-------------------------------------------------
 @@call_%s:
-
-    .make_right_di
 
     push bx
     mov bx, ax
@@ -174,8 +195,6 @@ My_Printf   proc
 ;-------------------------------------------------
 @@call_%d:
 
-    .make_right_di
-
     mov cl, 10d
 
     call Conver_Dec_And_Output
@@ -183,8 +202,6 @@ My_Printf   proc
 
 ;-------------------------------------------------
 @@call_%b:
-
-    .make_right_di
 
     mov cl, 2d
 
@@ -194,8 +211,6 @@ My_Printf   proc
 ;-------------------------------------------------
 @@call_%x:
 
-    .make_right_di
-
     mov cl, 16d
 
     call Conver_Dec_And_Output
@@ -203,8 +218,6 @@ My_Printf   proc
 
 ;-------------------------------------------------
 @@call_%o:
-
-    .make_right_di
 
     mov cl, 8d
 
@@ -214,12 +227,10 @@ My_Printf   proc
 ;-------------------------------------------------
 @@call_%c:
 
-    .make_right_di
-
     call Output_Char
     jmp @@again
 
-;-------------------------------------------------
+
 @@exit:
 
     pop bp
@@ -254,7 +265,7 @@ Output_Char proc
 
 
 ;=================================================
-; Conversion from decimal system to another and output (%d, %b, %x)
+; Conversion from decimal system to another and output (%d, %b, %x, %o)
 ; In:
 ;    AX = decimal number
 ;    CL = which system
@@ -310,10 +321,10 @@ Conver_Dec_And_Output  proc
 ;=================================================
 ; Output string (%s)
 ; In:
-;    Address of string in stack (0-terminated)
+;    Address of string in AX
 ;
 ; Destroy:
-;    AX, BX, DX
+;    AX, DX
 ;    Pop last from stack
 ;=================================================
 
